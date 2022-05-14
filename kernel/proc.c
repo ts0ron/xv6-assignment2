@@ -10,18 +10,22 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
-
 // Our addition - Queues management 
 
 // An array holding the CPUs' ready lists head 'pointer'
 // Initialized to -1 ( symbolic null)
-int cpus_ready_list[NCPU] = {[0 ... (NCPU-1)] = -1};
+int *cpus_ready_list[NCPU] = {[0 ... (NCPU-1)] = -1};
+
 // An array holding the ready lists' locks
 struct spinlock cpu_queue_locks[NCPU];
 
-int zombie_list = -1;
-int unused_list = -1;
-int sleeping_list = -1;
+int *zombie_list = -1;
+struct spinlock zombie_lock;
+int *unused_list = -1;
+struct spinlock unused_lock;
+int *sleeping_list = -1;
+struct spinlock sleeping_lock;
+
 
 // An indicator to init the queues in the scheduler
 int init_queues = 1;
@@ -100,7 +104,7 @@ add_to_queue_helper(int prev_proc, int curr_proc, int index)
 // int head: the index of the CPU to capture it's lock
 // int index: The index of the process inside proc[NPROC]
 int
-add_to_queue(int head, int index)
+add_to_queue(int *head, int index)
 {
   acquire(&cpu_queue_locks[head]);
 
@@ -136,11 +140,10 @@ add_to_queue(int head, int index)
   return 0;
 }
 
-
 // Helper function for queue deletion
 // deals with inner nodes alone and not with the head-lock or the first node
 int
-delete_from_queue_helper(int prev_proc, int curr_proc, int pid)
+delete_from_cpu_queue_helper(int prev_proc, int curr_proc, int index)
 {
   struct proc *curr_p = &proc[curr_proc];
   struct proc *prev_p = &proc[prev_proc];
@@ -148,13 +151,19 @@ delete_from_queue_helper(int prev_proc, int curr_proc, int pid)
   acquire(&prev_p->lock);
   acquire(&curr_p->lock);
 
-  while(curr_p->pid != pid){ // exit the while if we found the node with the desired PID
+  while(curr_p->next_node != index){ // exit the while if we found the node with the desired PID
     // update (curr to be prev) and (next to be curr)
     release(&prev_p->lock);
     prev_p = curr_p;
     curr_p = &proc[prev_p->next_node];
     acquire(&curr_p->lock);
   }
+
+  release(&prev_p->lock);
+  prev_p = curr_p;
+  curr_p = &proc[prev_p->next_node];
+  acquire(&curr_p->lock);
+  
 
   // Add the proc to the end of the list.
   prev_p->next_node = curr_p->next_node; 
@@ -168,25 +177,26 @@ delete_from_queue_helper(int prev_proc, int curr_proc, int pid)
 
 // A function to delete a process from a linked-list 
 int
-delete_from_queue(int head, int pid)
+delete_from_cpu_queue(int head,struct spinlock l,int pid)
 {
-  acquire(&cpu_queue_locks[head]);
+  acquire(&l);
 
   // If the queue is empty, return false - no element to remove.
   if(cpus_ready_list[head] == -1){
-    release(&cpu_queue_locks[head]);
+    // release(&cpu_queue_locks[head]);
+    release(&l);
     return 0;
   }
   else {
-    int first_node_index = cpus_ready_list[head];
-    struct proc *p = &proc[first_node_index];
+    struct proc *p = &proc[head];
     acquire(&p->lock);
 
     // if the first node is the 1 to be deleted
     if(p->pid == pid){
       cpus_ready_list[head] = p->next_node;
       p->next_node = -1;
-      release(&cpu_queue_locks[head]);
+      // release(&cpu_queue_locks[head]);
+      release(&l);
       release(&p->lock);
       return 1;
     } 
@@ -197,12 +207,20 @@ delete_from_queue(int head, int pid)
       release(&cpu_queue_locks[head]);
       int next_node = p->next_node;
       release(&p->lock);
-      return delete_from_queue_helper(first_node_index, next_node, pid);
+      return delete_from_cpu_queue_helper(first_node_index, next_node, pid);
     }
   }
   release(&cpu_queue_locks[head]);
   return 0;
 }
+
+int
+pop_from_queue(int head){
+  
+}
+
+//pop from queue
+
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -634,7 +652,8 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  
+  // int cpu_num = cpuid();
+
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
@@ -772,6 +791,11 @@ wakeup(void *chan)
 int
 print_pids(void){
   struct proc *p;
+  // struct cpu *c;
+  int cpu_num = cpuid();
+  printf("\nThe CPU number is : %d\n\n", cpu_num);
+
+
   printf("Processes PIDs: \n\n");
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);

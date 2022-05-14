@@ -99,7 +99,6 @@ struct proc {
   // Either an index in the proc[NPROC] array
   // or -1 if it is the null pointer, meaning, end of the list
   int next_node;
-
   // CPU number for the queue insertion
   int cpu_num;
 
