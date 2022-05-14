@@ -135,6 +135,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_print_pids\
 	$U/_test_cas\
+	$U/_get_cpu\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

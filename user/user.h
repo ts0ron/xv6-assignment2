@@ -23,6 +23,9 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+// Our addition
+int get_cpu(int);
+// End of our addition
 
 // ulib.c
 int stat(const char*, struct stat*);
