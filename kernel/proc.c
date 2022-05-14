@@ -103,42 +103,42 @@ add_to_queue_helper(int prev_proc, int curr_proc, int index)
 // into a specific linked list a.k.a queue
 // int head: the index of the CPU to capture it's lock
 // int index: The index of the process inside proc[NPROC]
-int
-add_to_queue(int *head, int index)
-{
-  acquire(&cpu_queue_locks[head]);
+// int
+// add_to_queue(int *head, int index)
+// {
+//   acquire(&cpu_queue_locks[head]);
 
-  // If the queue is empty, just update the head pointer
-  if(cpus_ready_list[head] == -1){
-    cpus_ready_list[head] = index;
-    release(&cpu_queue_locks[head]);
-    return 1;
-  }
-  else {
-    int first_node = cpus_ready_list[head];
-    struct proc *p = &proc[first_node];
-    acquire(&p->lock);
+//   // If the queue is empty, just update the head pointer
+//   if(cpus_ready_list[head] == -1){
+//     cpus_ready_list[head] = index;
+//     release(&cpu_queue_locks[head]);
+//     return 1;
+//   }
+//   else {
+//     int first_node = cpus_ready_list[head];
+//     struct proc *p = &proc[first_node];
+//     acquire(&p->lock);
 
-    // if there is only 1 node, then update it's next_node release all and return
-    if(p->next_node == -1){
-      p->next_node = index;
-      release(&cpu_queue_locks[head]);
-      release(&p->lock);
-      return 1;
-    } 
-    // else there are 2 nodes or more,
-    // then use add_to_queue with prev_node function.
-    // for concurrency reasons
-    else { 
-      release(&cpu_queue_locks[head]);
-      int next_node = p->next_node;
-      release(&p->lock);
-      return add_to_queue_helper(first_node, next_node, index);
-    }
-  }
-  release(&cpu_queue_locks[head]);
-  return 0;
-}
+//     // if there is only 1 node, then update it's next_node release all and return
+//     if(p->next_node == -1){
+//       p->next_node = index;
+//       release(&cpu_queue_locks[head]);
+//       release(&p->lock);
+//       return 1;
+//     } 
+//     // else there are 2 nodes or more,
+//     // then use add_to_queue with prev_node function.
+//     // for concurrency reasons
+//     else { 
+//       release(&cpu_queue_locks[head]);
+//       int next_node = p->next_node;
+//       release(&p->lock);
+//       return add_to_queue_helper(first_node, next_node, index);
+//     }
+//   }
+//   release(&cpu_queue_locks[head]);
+//   return 0;
+// }
 
 // Helper function for queue deletion
 // deals with inner nodes alone and not with the head-lock or the first node
@@ -211,6 +211,12 @@ delete_from_cpu_queue(int head,struct spinlock l,int pid)
     }
   }
   release(&cpu_queue_locks[head]);
+  return 0;
+}
+
+int
+push_to_queue(int *head, struct spinlock sl, int index)
+{
   return 0;
 }
 
@@ -810,6 +816,14 @@ wakeup(void *chan)
       release(&p->lock);
     }
   }
+}
+
+// OUR ADDITION
+
+int
+get_cpu(int cpu_num){
+  printf("cpu_num argument is %d\n", cpu_num);
+  return 0;
 }
 
 // printing processes IDs
