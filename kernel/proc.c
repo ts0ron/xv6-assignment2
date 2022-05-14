@@ -14,16 +14,16 @@ struct proc proc[NPROC];
 
 // An array holding the CPUs' ready lists head 'pointer'
 // Initialized to -1 ( symbolic null)
-int *cpus_ready_list[NCPU] = {[0 ... (NCPU-1)] = -1};
+int cpus_ready_list[NCPU] = {[0 ... (NCPU-1)] = -1};
 
 // An array holding the ready lists' locks
 struct spinlock cpu_queue_locks[NCPU];
 
-int *zombie_list = -1;
+int zombie_list = -1;
 struct spinlock zombie_lock;
-int *unused_list = -1;
+int unused_list = -1;
 struct spinlock unused_lock;
-int *sleeping_list = -1;
+int sleeping_list = -1;
 struct spinlock sleeping_lock;
 
 
@@ -207,7 +207,7 @@ delete_from_cpu_queue(int head,struct spinlock l,int pid)
       release(&cpu_queue_locks[head]);
       int next_node = p->next_node;
       release(&p->lock);
-      return delete_from_cpu_queue_helper(first_node_index, next_node, pid);
+      return delete_from_cpu_queue_helper(head, next_node, pid);
     }
   }
   release(&cpu_queue_locks[head]);
@@ -215,8 +215,30 @@ delete_from_cpu_queue(int head,struct spinlock l,int pid)
 }
 
 int
-pop_from_queue(int head){
-  
+pop_from_queue(int *head, struct spinlock sl){
+  acquire(&sl);
+
+  // If the queue is empty, return false - no element to remove.
+  if(*head == -1){
+    // release(&cpu_queue_locks[head]);
+    release(&sl);
+    return -1;
+  }
+  else {
+    struct proc *p = &proc[*head];
+    acquire(&p->lock);
+    int index_in_proc;
+
+    // delete the first node and return it's index inside proc[]
+    index_in_proc = *head;
+    *head = p->next_node;
+    p->next_node = -1;
+    release(&sl);
+    release(&p->lock);
+    return index_in_proc;
+  }
+  release(&sl);
+  return -1;
 }
 
 //pop from queue
@@ -256,6 +278,10 @@ procinit(void)
   for(l = cpu_queue_locks; l < &cpu_queue_locks[NCPU]; l++) {
       initlock(l, "ready_queue");
   }
+
+  initlock(&zombie_lock, "zombie_queue");
+  initlock(&unused_lock,"unused_queue");
+  initlock(&sleeping_lock, "sleeping_lock");
 
   // End of our addition
 }
